@@ -1,0 +1,32 @@
+openapi: 3.0.0
+info:
+  title: Likes Microservice API
+  version: "1.0"
+  description: API para manejar los "likes" en publicaciones
+paths:
+  /likes:
+    post:
+      summary: Crear un like para una publicación
+      operationId: createLike
+      tags:
+        - Likes
+      parameters:
+        - name: Authorization
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Token de autenticación JWT
+        - name: post_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: ID del post al que se le da like
+      responses:
+        '201':
+          description: Like creado exitosamente
+        '422':
+          description: Ya has dado un like a este post
+        '403':
+          description: Token inválido o expirado
