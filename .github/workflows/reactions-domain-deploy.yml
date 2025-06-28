@@ -2,23 +2,20 @@ name: Docker Build and Deploy Reactions Domain
 
 on:
   push:
-    branches:
-      - main
-      - test
+    branches: [main, test]
     paths:
       - 'add-like/**'
       - 'remove-like/**'
       - 'get-likes/**'
-
   pull_request:
-    branches:
-      - main
+    branches: [main]
     paths:
       - 'add-like/**'
       - 'remove-like/**'
       - 'get-likes/**'
 
 env:
+  PYTHON_VERSION: '3.11'
   DB_HOST: ${{ secrets.DB_HOST }}
   DB_USER: ${{ secrets.DB_USER }}
   DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
@@ -34,7 +31,6 @@ env:
   EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
   DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-  PYTHON_VERSION: '3.11'
 
 jobs:
 
@@ -46,12 +42,11 @@ jobs:
       get_likes_changed: ${{ steps.diff.outputs.get_likes }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - id: diff
         run: |
           git fetch origin ${{ github.base_ref }} || true
+
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             RANGE="origin/${{ github.base_ref }}...HEAD"
           else
@@ -81,20 +76,24 @@ jobs:
         service:
           - name: add-like
             port: 6001
+            changed: ${{ needs.detect-changes.outputs.add_like_changed }}
           - name: remove-like
             port: 6002
+            changed: ${{ needs.detect-changes.outputs.remove_like_changed }}
           - name: get-likes
             port: 6003
-    if: needs.detect-changes.outputs[format('{0}_changed', matrix.service.name.replace('-', '_'))] == 'true'
+            changed: ${{ needs.detect-changes.outputs.get_likes_changed }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
+        if: matrix.service.changed == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install Python dependencies
+      - name: Install dependencies
+        if: matrix.service.changed == 'true'
         run: |
           cd ${{ matrix.service.name }}
           python -m pip install --upgrade pip
@@ -102,6 +101,7 @@ jobs:
           pip install pytest
 
       - name: Create .env file
+        if: matrix.service.changed == 'true'
         run: |
           cd ${{ matrix.service.name }}
           cat <<EOF > .env
@@ -119,68 +119,86 @@ jobs:
           EC2_REACTIONS_DOMAIN_TEST=${{ env.EC2_REACTIONS_DOMAIN_TEST }}
           EC2_SSH_KEY=${{ env.EC2_SSH_KEY }}
           DOCKERHUB_USERNAME=${{ env.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN=${{ env.DOCKERHUB_TOKEN }}
           EOF
 
       - name: Run tests
+        if: matrix.service.changed == 'true'
         run: |
           cd ${{ matrix.service.name }}
           pytest
 
       - name: Build Docker image
+        if: matrix.service.changed == 'true'
         run: |
           cd ${{ matrix.service.name }}
           docker build -t ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest .
 
       - name: Save Docker image as artifact
+        if: matrix.service.changed == 'true'
         run: |
           docker save ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest > ${{ matrix.service.name }}.tar
 
       - uses: actions/upload-artifact@v4
+        if: matrix.service.changed == 'true'
         with:
           name: ${{ matrix.service.name }}-image
           path: ${{ matrix.service.name }}.tar
 
-  push-to-dockerhub:
+  push-dockerhub:
     needs: build-and-test
     runs-on: ubuntu-latest
     strategy:
       matrix:
         service:
           - name: add-like
+            changed: ${{ needs.detect-changes.outputs.add_like_changed }}
           - name: remove-like
+            changed: ${{ needs.detect-changes.outputs.remove_like_changed }}
           - name: get-likes
-    if: needs.detect-changes.outputs[format('{0}_changed', matrix.service.name.replace('-', '_'))] == 'true'
+            changed: ${{ needs.detect-changes.outputs.get_likes_changed }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/download-artifact@v4
+        if: matrix.service.changed == 'true'
         with:
           name: ${{ matrix.service.name }}-image
+          path: .
 
       - name: Load Docker image
-        run: docker load -i ${{ matrix.service.name }}.tar
+        if: matrix.service.changed == 'true'
+        run: |
+          docker load -i ${{ matrix.service.name }}.tar
 
       - name: Log in to Docker Hub
-        run: echo "${{ env.DOCKERHUB_TOKEN }}" | docker login -u "${{ env.DOCKERHUB_USERNAME }}" --password-stdin
+        if: matrix.service.changed == 'true'
+        run: |
+          echo "${{ env.DOCKERHUB_TOKEN }}" | docker login -u "${{ env.DOCKERHUB_USERNAME }}" --password-stdin
 
       - name: Push Docker image
-        run: docker push ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest
+        if: matrix.service.changed == 'true'
+        run: |
+          docker push ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest
 
-  deploy-to-ec2:
-    needs: push-to-dockerhub
+  deploy-ec2:
+    needs: push-dockerhub
     runs-on: ubuntu-latest
     strategy:
       matrix:
         service:
           - name: add-like
             port: 6001
+            changed: ${{ needs.detect-changes.outputs.add_like_changed }}
           - name: remove-like
             port: 6002
+            changed: ${{ needs.detect-changes.outputs.remove_like_changed }}
           - name: get-likes
             port: 6003
-    if: needs.detect-changes.outputs[format('{0}_changed', matrix.service.name.replace('-', '_'))] == 'true'
+            changed: ${{ needs.detect-changes.outputs.get_likes_changed }}
     steps:
-      - name: Deploy ${{ matrix.service.name }} to EC2
+      - name: Deploy ${{ matrix.service.name }} to EC2 via SSH
+        if: matrix.service.changed == 'true'
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ env.EC2_REACTIONS_DOMAIN_TEST }}
@@ -188,8 +206,12 @@ jobs:
           key: ${{ env.EC2_SSH_KEY }}
           port: 22
           script: |
-            docker ps -a --format '{{.Names}}' | grep -Eq "^${{ matrix.service.name }}$" && docker stop ${{ matrix.service.name }} && docker rm ${{ matrix.service.name }}
+            docker ps -a --format '{{.Names}}' | grep -Eq "^${{ matrix.service.name }}$" && \
+              docker stop ${{ matrix.service.name }} && \
+              docker rm ${{ matrix.service.name }} || true
+
             docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest
+
             docker run -d \
               --name ${{ matrix.service.name }} \
               -p ${{ matrix.service.port }}:${{ matrix.service.port }} \
@@ -209,4 +231,5 @@ jobs:
               -e DOCKERHUB_USERNAME="${{ env.DOCKERHUB_USERNAME }}" \
               -e DOCKERHUB_TOKEN="${{ env.DOCKERHUB_TOKEN }}" \
               ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest
+
             docker logs ${{ matrix.service.name }} || true
