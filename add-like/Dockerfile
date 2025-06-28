@@ -1,29 +1,16 @@
-# Use an official Ruby runtime as a parent image
-FROM ruby:3.1.2
 
-# Set the working directory to /app
+FROM python:3.13-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update -qq && apt-get install -y nodejs postgresql-client
+COPY requirements.txt .
 
-# Install Rails and other necessary dependencies
-RUN gem install rails -v 7.0.0
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Redis (needed for ActionCable)
-RUN apt-get install -y redis-server
+COPY . .
 
-# Add the Rails project to the Docker container
-COPY . /app
+EXPOSE 6001
 
-# Install the required gems
-RUN bundle install
-
-# Precompile assets for production (you can skip this in development)
-# RUN RAILS_ENV=production bundle exec rake assets:precompile
-
-# Expose port 7001 for Rails server and ActionCable
-EXPOSE 7001
-
-# Start the Rails server on port 7001
-CMD ["rails", "s", "-b", "0.0.0.0", "-p", "7001"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "6001", "--reload"]
