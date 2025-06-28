@@ -4,12 +4,14 @@ on:
   push:
     branches: [main, test]
     paths:
+      - '.github/workflows/**'      
       - 'add-like/**'
       - 'remove-like/**'
       - 'get-likes/**'
   pull_request:
     branches: [main]
     paths:
+      - '.github/workflows/**'      
       - 'add-like/**'
       - 'remove-like/**'
       - 'get-likes/**'
@@ -49,9 +51,9 @@ jobs:
           git fetch --prune --unshallow || git fetch --all
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             git fetch origin ${{ github.base_ref }}
-            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep "^${{ matrix.service }}/" || true)
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E "^${{ matrix.service }}/|^\.github/workflows/" || true)
           else
-            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep "^${{ matrix.service }}/" || true)
+            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -E "^${{ matrix.service }}/|^\.github/workflows/" || true)
           fi
           if [[ -n "$CHANGED" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
@@ -113,9 +115,9 @@ jobs:
           git fetch --prune --unshallow || git fetch --all
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             git fetch origin ${{ github.base_ref }}
-            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep "^${{ matrix.service }}/" || true)
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E "^${{ matrix.service }}/|^\.github/workflows/" || true)
           else
-            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep "^${{ matrix.service }}/" || true)
+            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -E "^${{ matrix.service }}/|^\.github/workflows/" || true)
           fi
           if [[ -n "$CHANGED" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
@@ -155,9 +157,9 @@ jobs:
           git fetch --prune --unshallow || git fetch --all
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             git fetch origin ${{ github.base_ref }}
-            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep "^${{ matrix.service }}/" || true)
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E "^${{ matrix.service }}/|^\.github/workflows/" || true)
           else
-            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep "^${{ matrix.service }}/" || true)
+            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -E "^${{ matrix.service }}/|^\.github/workflows/" || true)
           fi
           if [[ -n "$CHANGED" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
@@ -203,9 +205,9 @@ jobs:
           git fetch --prune --unshallow || git fetch --all
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             git fetch origin ${{ github.base_ref }}
-            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep "^${{ matrix.service }}/" || true)
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E "^${{ matrix.service }}/|^\.github/workflows/" || true)
           else
-            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep "^${{ matrix.service }}/" || true)
+            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -E "^${{ matrix.service }}/|^\.github/workflows/" || true)
           fi
           if [[ -n "$CHANGED" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
