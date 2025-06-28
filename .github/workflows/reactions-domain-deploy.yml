@@ -1,237 +1,259 @@
-name: Docker Build and Deploy Reactions-Domain
+name: Docker Build and Deploy Reactions Domain
 
 on:
   push:
-    branches:
-      - test
+    branches: [main, test]
     paths:
       - 'add-like/**'
       - 'remove-like/**'
       - 'get-likes/**'
   pull_request:
-    branches:
-      - main
+    branches: [main]
     paths:
       - 'add-like/**'
       - 'remove-like/**'
       - 'get-likes/**'
 
 env:
-  PYTHON_VERSION: '3.11'
-  DB_HOST: ${{ secrets.DB_HOST }}
-  DB_USER: ${{ secrets.DB_USER }}
-  DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-  DB_PORT: ${{ secrets.DB_PORT }}
-  JWT_SECRET: ${{ secrets.JWT_SECRET }}
-  PET_DB_NAME: ${{ secrets.PET_DB_NAME }}
-  POST_DB_NAME: ${{ secrets.POST_DB_NAME }}
-  REACTIONS_DB_NAME: ${{ secrets.REACTIONS_DB_NAME }}
-  WEBHOOK_NOTIFICATIONS_URL: ${{ secrets.WEBHOOK_NOTIFICATIONS_URL }}
-  REDIS_HOST: ${{ secrets.REDIS_HOST }}
-  REDIS_PORT: ${{ secrets.REDIS_PORT }}
-  EC2_REACTIONS_DOMAIN_TEST: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
-  EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    DB_HOST: ${{ secrets.DB_HOST }}
+    DB_USER: ${{ secrets.DB_USER }}
+    DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+    DB_PORT: ${{ secrets.DB_PORT }}
+    JWT_SECRET: ${{ secrets.JWT_SECRET }}
+    PET_DB_NAME: ${{ secrets.PET_DB_NAME }}
+    POST_DB_NAME: ${{ secrets.POST_DB_NAME }}
+    REACTIONS_DB_NAME: ${{ secrets.REACTIONS_DB_NAME }}
+    WEBHOOK_NOTIFICATIONS_URL: ${{ secrets.WEBHOOK_NOTIFICATIONS_URL }}
+    REDIS_HOST: ${{ secrets.REDIS_HOST }}
+    REDIS_PORT: ${{ secrets.REDIS_PORT }}
+    EC2_REACTIONS_DOMAIN_TEST: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
+    EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+    DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+    DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
 jobs:
-
-  detect-changes:
+  test:
     runs-on: ubuntu-latest
-    outputs:
-      add_like_changed: ${{ steps.diff.outputs.add_like }}
-      remove_like_changed: ${{ steps.diff.outputs.remove_like }}
-      get_likes_changed: ${{ steps.diff.outputs.get_likes }}
+    strategy:
+      matrix:
+        service: [add-like, remove-like, get-likes]
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - id: diff
+      - name: Detect changes for service
+        id: changes
         run: |
-          git fetch origin ${{ github.base_ref }} || true
-
+          git fetch --prune --unshallow || git fetch --all
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            RANGE="origin/${{ github.base_ref }}...HEAD"
+            git fetch origin ${{ github.base_ref }}
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep "^${{ matrix.service }}/" || true)
           else
-            RANGE="${{ github.event.before }}...${{ github.sha }}"
+            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep "^${{ matrix.service }}/" || true)
+          fi
+          if [[ -n "$CHANGED" ]]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
-          check_changed() {
-            SERVICE_PATH=$1
-            NAME=$2
-            CHANGED=$(git diff --name-only $RANGE | grep "^${SERVICE_PATH}" || true)
-            if [[ -n "$CHANGED" ]]; then
-              echo "${NAME}=true" >> $GITHUB_OUTPUT
-            else
-              echo "${NAME}=false" >> $GITHUB_OUTPUT
-            fi
-          }
-
-          check_changed "add-like/" "add_like"
-          check_changed "remove-like/" "remove_like"
-          check_changed "get-likes/" "get_likes"
-
-  build-and-test:
-    needs: detect-changes
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        service:
-          - name: add-like
-            port: 6001
-            changed: ${{ needs.detect-changes.outputs.add_like_changed }}
-          - name: remove-like
-            port: 6002
-            changed: ${{ needs.detect-changes.outputs.remove_like_changed }}
-          - name: get-likes
-            port: 6003
-            changed: ${{ needs.detect-changes.outputs.get_likes_changed }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        if: ${{ matrix.service.changed == 'true' }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Install dependencies
-        if: ${{ matrix.service.changed == 'true' }}
+        if: steps.changes.outputs.changed == 'true'
         run: |
-          cd ${{ matrix.service.name }}
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest
+          pip install -r ${{ matrix.service }}/requirements.txt
+          pip install pytest python-dotenv
 
-      - name: Create .env file
-        if: ${{ matrix.service.changed == 'true' }}
+      - name: Crear archivo .env con secrets de GitHub
+        if: steps.changes.outputs.changed == 'true'
+        working-directory: ${{ matrix.service }}
         run: |
-          cd ${{ matrix.service.name }}
           cat <<EOF > .env
-          DB_HOST=${{ env.DB_HOST }}
-          DB_USER=${{ env.DB_USER }}
-          DB_PASSWORD=${{ env.DB_PASSWORD }}
-          DB_PORT=${{ env.DB_PORT }}
-          JWT_SECRET=${{ env.JWT_SECRET }}
-          PET_DB_NAME=${{ env.PET_DB_NAME }}
-          POST_DB_NAME=${{ env.POST_DB_NAME }}
-          REACTIONS_DB_NAME=${{ env.REACTIONS_DB_NAME }}
-          WEBHOOK_NOTIFICATIONS_URL=${{ env.WEBHOOK_NOTIFICATIONS_URL }}
-          REDIS_HOST=${{ env.REDIS_HOST }}
-          REDIS_PORT=${{ env.REDIS_PORT }}
-          EC2_REACTIONS_DOMAIN_TEST=${{ env.EC2_REACTIONS_DOMAIN_TEST }}
-          EC2_SSH_KEY=${{ env.EC2_SSH_KEY }}
-          DOCKERHUB_USERNAME=${{ env.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN=${{ env.DOCKERHUB_TOKEN }}
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          PET_DB_NAME=${{ secrets.PET_DB_NAME }}
+          POST_DB_NAME=${{ secrets.POST_DB_NAME }}
+          REACTIONS_DB_NAME=${{ secrets.REACTIONS_DB_NAME }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
           EOF
 
-      - name: Run tests
-        if: ${{ matrix.service.changed == 'true' }}
-        run: |
-          cd ${{ matrix.service.name }}
-          pytest
+      - name: Run environment tests
+        if: steps.changes.outputs.changed == 'true'
+        working-directory: ${{ matrix.service }}
+        env:
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          PET_DB_NAME: ${{ secrets.PET_DB_NAME }}
+          POST_DB_NAME: ${{ secrets.POST_DB_NAME }}
+          REACTIONS_DB_NAME: ${{ secrets.REACTIONS_DB_NAME }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: pytest tests/test_env.py
 
-      - name: Build Docker image
-        if: ${{ matrix.service.changed == 'true' }}
-        run: |
-          cd ${{ matrix.service.name }}
-          docker build -t ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest .
-
-      - name: Save Docker image as artifact
-        if: ${{ matrix.service.changed == 'true' }}
-        run: |
-          docker save ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest > ${{ matrix.service.name }}.tar
-
-      - uses: actions/upload-artifact@v4
-        if: ${{ matrix.service.changed == 'true' }}
-        with:
-          name: ${{ matrix.service.name }}-image
-          path: ${{ matrix.service.name }}.tar
-
-  push-dockerhub:
-    needs: build-and-test
+  build:
     runs-on: ubuntu-latest
+    needs: test
     strategy:
       matrix:
-        service:
-          - name: add-like
-            changed: ${{ needs.detect-changes.outputs.add_like_changed }}
-          - name: remove-like
-            changed: ${{ needs.detect-changes.outputs.remove_like_changed }}
-          - name: get-likes
-            changed: ${{ needs.detect-changes.outputs.get_likes_changed }}
+        service: [add-like, remove-like, get-likes]
+
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        if: ${{ matrix.service.changed == 'true' }}
         with:
-          name: ${{ matrix.service.name }}-image
-          path: .
+          fetch-depth: 0
 
-      - name: Load Docker image
-        if: ${{ matrix.service.changed == 'true' }}
+      - name: Detect changes for service
+        id: changes
         run: |
-          docker load -i ${{ matrix.service.name }}.tar
+          git fetch --prune --unshallow || git fetch --all
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git fetch origin ${{ github.base_ref }}
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep "^${{ matrix.service }}/" || true)
+          else
+            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep "^${{ matrix.service }}/" || true)
+          fi
+          if [[ -n "$CHANGED" ]]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Log in to Docker Hub
-        if: ${{ matrix.service.changed == 'true' }}
-        run: |
-          echo "${{ env.DOCKERHUB_TOKEN }}" | docker login -u "${{ env.DOCKERHUB_USERNAME }}" --password-stdin
+      - name: Build Docker image
+        if: steps.changes.outputs.changed == 'true'
+        run: docker build -t ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service }}:latest ./${{ matrix.service }}
 
-      - name: Push Docker image
-        if: ${{ matrix.service.changed == 'true' }}
-        run: |
-          docker push ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest
+      - name: Save Docker image artifact
+        if: steps.changes.outputs.changed == 'true'
+        run: docker save ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service }}:latest -o ${{ matrix.service }}.tar
 
-  deploy-ec2:
-    needs: push-dockerhub
+      - uses: actions/upload-artifact@v4
+        if: steps.changes.outputs.changed == 'true'
+        with:
+          name: ${{ matrix.service }}-image
+          path: ${{ matrix.service }}.tar
+
+  push:
     runs-on: ubuntu-latest
+    needs: build
     strategy:
       matrix:
-        service:
-          - name: add-like
-            port: 6001
-            changed: ${{ needs.detect-changes.outputs.add_like_changed }}
-          - name: remove-like
-            port: 6002
-            changed: ${{ needs.detect-changes.outputs.remove_like_changed }}
-          - name: get-likes
-            port: 6003
-            changed: ${{ needs.detect-changes.outputs.get_likes_changed }}
+        service: [add-like, remove-like, get-likes]
+
     steps:
-      - name: Deploy ${{ matrix.service.name }} to EC2 via SSH
-        if: ${{ matrix.service.changed == 'true' }}
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changes for service
+        id: changes
+        run: |
+          git fetch --prune --unshallow || git fetch --all
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git fetch origin ${{ github.base_ref }}
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep "^${{ matrix.service }}/" || true)
+          else
+            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep "^${{ matrix.service }}/" || true)
+          fi
+          if [[ -n "$CHANGED" ]]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: actions/download-artifact@v4
+        if: steps.changes.outputs.changed == 'true'
+        with:
+          name: ${{ matrix.service }}-image
+
+      - name: Load Docker image
+        if: steps.changes.outputs.changed == 'true'
+        run: docker load -i ${{ matrix.service }}.tar
+
+      - name: Login to Docker Hub
+        if: steps.changes.outputs.changed == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+
+      - name: Push Docker image
+        if: steps.changes.outputs.changed == 'true'
+        run: docker push ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service }}:latest
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: push
+    strategy:
+      matrix:
+        service: [add-like, remove-like, get-likes]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changes for service
+        id: changes
+        run: |
+          git fetch --prune --unshallow || git fetch --all
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git fetch origin ${{ github.base_ref }}
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep "^${{ matrix.service }}/" || true)
+          else
+            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep "^${{ matrix.service }}/" || true)
+          fi
+          if [[ -n "$CHANGED" ]]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Seleccionar ambiente y SSH key
+        if: steps.changes.outputs.changed == 'true'
+        id: select-env
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/test" ]]; then
+            echo "host=${{ secrets.EC2_QA }}" >> $GITHUB_OUTPUT
+            echo "key<<EOF" >> $GITHUB_OUTPUT
+            echo "${{ secrets.SSH_KEY_QA }}" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "host=${{ secrets.EC2_PROD }}" >> $GITHUB_OUTPUT
+            echo "key<<EOF" >> $GITHUB_OUTPUT
+            echo "${{ secrets.SSH_KEY_PROD }}" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy updated microservice to EC2 via SSH
+        if: steps.changes.outputs.changed == 'true'
         uses: appleboy/ssh-action@v0.1.7
         with:
-          host: ${{ env.EC2_REACTIONS_DOMAIN_TEST }}
+          host: ${{ steps.select-env.outputs.host }}
           username: ubuntu
-          key: ${{ env.EC2_SSH_KEY }}
+          key: ${{ steps.select-env.outputs.key }}
           port: 22
           script: |
-            docker ps -a --format '{{.Names}}' | grep -Eq "^${{ matrix.service.name }}$" && \
-              docker stop ${{ matrix.service.name }} && \
-              docker rm ${{ matrix.service.name }} || true
+            docker rm -f ${{ matrix.service }} || true
 
-            docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest
+            export DB_HOST='${{ secrets.DB_HOST }}'
+            export DB_USER='${{ secrets.DB_USER }}'
+            export DB_PASSWORD='${{ secrets.DB_PASSWORD }}'
+            export DB_PORT='${{ secrets.DB_PORT }}'
+            export PET_DB_NAME='${{ secrets.PET_DB_NAME }}'
+            export POST_DB_NAME='${{ secrets.POST_DB_NAME }}'
+            export REACTIONS_DB_NAME='${{ secrets.REACTIONS_DB_NAME }}'
+            export JWT_SECRET='${{ secrets.JWT_SECRET }}'
 
-            docker run -d \
-              --name ${{ matrix.service.name }} \
-              -p ${{ matrix.service.port }}:${{ matrix.service.port }} \
-              -e DB_HOST="${{ env.DB_HOST }}" \
-              -e DB_USER="${{ env.DB_USER }}" \
-              -e DB_PASSWORD="${{ env.DB_PASSWORD }}" \
-              -e DB_PORT="${{ env.DB_PORT }}" \
-              -e JWT_SECRET="${{ env.JWT_SECRET }}" \
-              -e PET_DB_NAME="${{ env.PET_DB_NAME }}" \
-              -e POST_DB_NAME="${{ env.POST_DB_NAME }}" \
-              -e REACTIONS_DB_NAME="${{ env.REACTIONS_DB_NAME }}" \
-              -e WEBHOOK_NOTIFICATIONS_URL="${{ env.WEBHOOK_NOTIFICATIONS_URL }}" \
-              -e REDIS_HOST="${{ env.REDIS_HOST }}" \
-              -e REDIS_PORT="${{ env.REDIS_PORT }}" \
-              -e EC2_REACTIONS_DOMAIN_TEST="${{ env.EC2_REACTIONS_DOMAIN_TEST }}" \
-              -e EC2_SSH_KEY="${{ env.EC2_SSH_KEY }}" \
-              -e DOCKERHUB_USERNAME="${{ env.DOCKERHUB_USERNAME }}" \
-              -e DOCKERHUB_TOKEN="${{ env.DOCKERHUB_TOKEN }}" \
-              ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest
-
-            docker logs ${{ matrix.service.name }} || true
+            # Puertos según microservicio
+            if [ "${{ matrix.service }}" = "add-like" ]; then
+              docker run -d --name add-like -p 6001:6001 ${{ env.DOCKERHUB_USERNAME }}/add-like:latest
+            elif [ "${{ matrix.service }}" = "remove-like" ]; then
+              docker run -d --name remove-like -p 6002:6002 ${{ env.DOCKERHUB_USERNAME }}/remove-like:latest
+            elif [ "${{ matrix.service }}" = "get-likes" ]; then
+              docker run -d --name get-likes -p 6003:6003 ${{ env.DOCKERHUB_USERNAME }}/get-likes:latest
+            fi
