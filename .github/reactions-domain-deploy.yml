@@ -1,0 +1,212 @@
+name: Docker Build and Deploy Reactions Domain
+
+on:
+  push:
+    branches:
+      - main
+      - test
+    paths:
+      - 'add-like/**'
+      - 'remove-like/**'
+      - 'get-likes/**'
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'add-like/**'
+      - 'remove-like/**'
+      - 'get-likes/**'
+
+env:
+  DB_HOST: ${{ secrets.DB_HOST }}
+  DB_USER: ${{ secrets.DB_USER }}
+  DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+  DB_PORT: ${{ secrets.DB_PORT }}
+  JWT_SECRET: ${{ secrets.JWT_SECRET }}
+  PET_DB_NAME: ${{ secrets.PET_DB_NAME }}
+  POST_DB_NAME: ${{ secrets.POST_DB_NAME }}
+  REACTIONS_DB_NAME: ${{ secrets.REACTIONS_DB_NAME }}
+  WEBHOOK_NOTIFICATIONS_URL: ${{ secrets.WEBHOOK_NOTIFICATIONS_URL }}
+  REDIS_HOST: ${{ secrets.REDIS_HOST }}
+  REDIS_PORT: ${{ secrets.REDIS_PORT }}
+  EC2_REACTIONS_DOMAIN_TEST: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
+  EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+  PYTHON_VERSION: '3.11'
+
+jobs:
+
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      add_like_changed: ${{ steps.diff.outputs.add_like }}
+      remove_like_changed: ${{ steps.diff.outputs.remove_like }}
+      get_likes_changed: ${{ steps.diff.outputs.get_likes }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: diff
+        run: |
+          git fetch origin ${{ github.base_ref }} || true
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            RANGE="origin/${{ github.base_ref }}...HEAD"
+          else
+            RANGE="${{ github.event.before }}...${{ github.sha }}"
+          fi
+
+          check_changed() {
+            SERVICE_PATH=$1
+            NAME=$2
+            CHANGED=$(git diff --name-only $RANGE | grep "^${SERVICE_PATH}" || true)
+            if [[ -n "$CHANGED" ]]; then
+              echo "${NAME}=true" >> $GITHUB_OUTPUT
+            else
+              echo "${NAME}=false" >> $GITHUB_OUTPUT
+            fi
+          }
+
+          check_changed "add-like/" "add_like"
+          check_changed "remove-like/" "remove_like"
+          check_changed "get-likes/" "get_likes"
+
+  build-and-test:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - name: add-like
+            port: 6001
+          - name: remove-like
+            port: 6002
+          - name: get-likes
+            port: 6003
+    if: needs.detect-changes.outputs[format('{0}_changed', matrix.service.name.replace('-', '_'))] == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Python dependencies
+        run: |
+          cd ${{ matrix.service.name }}
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Create .env file
+        run: |
+          cd ${{ matrix.service.name }}
+          cat <<EOF > .env
+          DB_HOST=${{ env.DB_HOST }}
+          DB_USER=${{ env.DB_USER }}
+          DB_PASSWORD=${{ env.DB_PASSWORD }}
+          DB_PORT=${{ env.DB_PORT }}
+          JWT_SECRET=${{ env.JWT_SECRET }}
+          PET_DB_NAME=${{ env.PET_DB_NAME }}
+          POST_DB_NAME=${{ env.POST_DB_NAME }}
+          REACTIONS_DB_NAME=${{ env.REACTIONS_DB_NAME }}
+          WEBHOOK_NOTIFICATIONS_URL=${{ env.WEBHOOK_NOTIFICATIONS_URL }}
+          REDIS_HOST=${{ env.REDIS_HOST }}
+          REDIS_PORT=${{ env.REDIS_PORT }}
+          EC2_REACTIONS_DOMAIN_TEST=${{ env.EC2_REACTIONS_DOMAIN_TEST }}
+          EC2_SSH_KEY=${{ env.EC2_SSH_KEY }}
+          DOCKERHUB_USERNAME=${{ env.DOCKERHUB_USERNAME }}
+          EOF
+
+      - name: Run tests
+        run: |
+          cd ${{ matrix.service.name }}
+          pytest
+
+      - name: Build Docker image
+        run: |
+          cd ${{ matrix.service.name }}
+          docker build -t ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest .
+
+      - name: Save Docker image as artifact
+        run: |
+          docker save ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest > ${{ matrix.service.name }}.tar
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.service.name }}-image
+          path: ${{ matrix.service.name }}.tar
+
+  push-to-dockerhub:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - name: add-like
+          - name: remove-like
+          - name: get-likes
+    if: needs.detect-changes.outputs[format('{0}_changed', matrix.service.name.replace('-', '_'))] == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.service.name }}-image
+
+      - name: Load Docker image
+        run: docker load -i ${{ matrix.service.name }}.tar
+
+      - name: Log in to Docker Hub
+        run: echo "${{ env.DOCKERHUB_TOKEN }}" | docker login -u "${{ env.DOCKERHUB_USERNAME }}" --password-stdin
+
+      - name: Push Docker image
+        run: docker push ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest
+
+  deploy-to-ec2:
+    needs: push-to-dockerhub
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service:
+          - name: add-like
+            port: 6001
+          - name: remove-like
+            port: 6002
+          - name: get-likes
+            port: 6003
+    if: needs.detect-changes.outputs[format('{0}_changed', matrix.service.name.replace('-', '_'))] == 'true'
+    steps:
+      - name: Deploy ${{ matrix.service.name }} to EC2
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ env.EC2_REACTIONS_DOMAIN_TEST }}
+          username: ubuntu
+          key: ${{ env.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            docker ps -a --format '{{.Names}}' | grep -Eq "^${{ matrix.service.name }}$" && docker stop ${{ matrix.service.name }} && docker rm ${{ matrix.service.name }}
+            docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest
+            docker run -d \
+              --name ${{ matrix.service.name }} \
+              -p ${{ matrix.service.port }}:${{ matrix.service.port }} \
+              -e DB_HOST="${{ env.DB_HOST }}" \
+              -e DB_USER="${{ env.DB_USER }}" \
+              -e DB_PASSWORD="${{ env.DB_PASSWORD }}" \
+              -e DB_PORT="${{ env.DB_PORT }}" \
+              -e JWT_SECRET="${{ env.JWT_SECRET }}" \
+              -e PET_DB_NAME="${{ env.PET_DB_NAME }}" \
+              -e POST_DB_NAME="${{ env.POST_DB_NAME }}" \
+              -e REACTIONS_DB_NAME="${{ env.REACTIONS_DB_NAME }}" \
+              -e WEBHOOK_NOTIFICATIONS_URL="${{ env.WEBHOOK_NOTIFICATIONS_URL }}" \
+              -e REDIS_HOST="${{ env.REDIS_HOST }}" \
+              -e REDIS_PORT="${{ env.REDIS_PORT }}" \
+              -e EC2_REACTIONS_DOMAIN_TEST="${{ env.EC2_REACTIONS_DOMAIN_TEST }}" \
+              -e EC2_SSH_KEY="${{ env.EC2_SSH_KEY }}" \
+              -e DOCKERHUB_USERNAME="${{ env.DOCKERHUB_USERNAME }}" \
+              -e DOCKERHUB_TOKEN="${{ env.DOCKERHUB_TOKEN }}" \
+              ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest
+            docker logs ${{ matrix.service.name }} || true
