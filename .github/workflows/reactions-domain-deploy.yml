@@ -2,13 +2,15 @@ name: Docker Build and Deploy Reactions-Domain
 
 on:
   push:
-    branches: [main, test]
+    branches:
+      - test
     paths:
       - 'add-like/**'
       - 'remove-like/**'
       - 'get-likes/**'
   pull_request:
-    branches: [main]
+    branches:
+      - main
     paths:
       - 'add-like/**'
       - 'remove-like/**'
@@ -87,13 +89,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python
-        if: matrix.service.changed == 'true'
+        if: ${{ matrix.service.changed == 'true' }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
-        if: matrix.service.changed == 'true'
+        if: ${{ matrix.service.changed == 'true' }}
         run: |
           cd ${{ matrix.service.name }}
           python -m pip install --upgrade pip
@@ -101,7 +103,7 @@ jobs:
           pip install pytest
 
       - name: Create .env file
-        if: matrix.service.changed == 'true'
+        if: ${{ matrix.service.changed == 'true' }}
         run: |
           cd ${{ matrix.service.name }}
           cat <<EOF > .env
@@ -123,24 +125,24 @@ jobs:
           EOF
 
       - name: Run tests
-        if: matrix.service.changed == 'true'
+        if: ${{ matrix.service.changed == 'true' }}
         run: |
           cd ${{ matrix.service.name }}
           pytest
 
       - name: Build Docker image
-        if: matrix.service.changed == 'true'
+        if: ${{ matrix.service.changed == 'true' }}
         run: |
           cd ${{ matrix.service.name }}
           docker build -t ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest .
 
       - name: Save Docker image as artifact
-        if: matrix.service.changed == 'true'
+        if: ${{ matrix.service.changed == 'true' }}
         run: |
           docker save ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest > ${{ matrix.service.name }}.tar
 
       - uses: actions/upload-artifact@v4
-        if: matrix.service.changed == 'true'
+        if: ${{ matrix.service.changed == 'true' }}
         with:
           name: ${{ matrix.service.name }}-image
           path: ${{ matrix.service.name }}.tar
@@ -161,23 +163,23 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: actions/download-artifact@v4
-        if: matrix.service.changed == 'true'
+        if: ${{ matrix.service.changed == 'true' }}
         with:
           name: ${{ matrix.service.name }}-image
           path: .
 
       - name: Load Docker image
-        if: matrix.service.changed == 'true'
+        if: ${{ matrix.service.changed == 'true' }}
         run: |
           docker load -i ${{ matrix.service.name }}.tar
 
       - name: Log in to Docker Hub
-        if: matrix.service.changed == 'true'
+        if: ${{ matrix.service.changed == 'true' }}
         run: |
           echo "${{ env.DOCKERHUB_TOKEN }}" | docker login -u "${{ env.DOCKERHUB_USERNAME }}" --password-stdin
 
       - name: Push Docker image
-        if: matrix.service.changed == 'true'
+        if: ${{ matrix.service.changed == 'true' }}
         run: |
           docker push ${{ env.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest
 
@@ -198,7 +200,7 @@ jobs:
             changed: ${{ needs.detect-changes.outputs.get_likes_changed }}
     steps:
       - name: Deploy ${{ matrix.service.name }} to EC2 via SSH
-        if: matrix.service.changed == 'true'
+        if: ${{ matrix.service.changed == 'true' }}
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ env.EC2_REACTIONS_DOMAIN_TEST }}
