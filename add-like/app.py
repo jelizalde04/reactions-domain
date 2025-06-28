@@ -10,7 +10,7 @@ app = FastAPI(
     title="Pet Profile API",
     version="1.0.0",
     description="API para el manejo de perfiles de mascotas",
-    docs_url="/api-docs-addLikes",                   
+    docs_url="/api-docs-addLike",                   
     redoc_url=None,
     openapi_url="/api-docs-likes/openapi.json",   
 )
