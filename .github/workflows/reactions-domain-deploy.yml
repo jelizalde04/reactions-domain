@@ -1,4 +1,4 @@
-name: Docker Build, Push & Deploy by Service (No Matrix, Puertos Exactos, .env en EC2)
+name: Docker Build, Push & Deploy by Service (No Matrix, Reliable Paths Filter, .env en EC2)
 
 on:
   push:
@@ -34,14 +34,28 @@ env:
   DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
 jobs:
-  add_like_service:
-    name: CI/CD add-like
+  changes:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (
-        contains(join(github.event.commits.*.modified, ','), 'add-like/') ||
-        contains(join(github.event.commits.*.added, ','), 'add-like/') ||
-        contains(join(github.event.commits.*.removed, ','), 'add-like/')
-      )
+    outputs:
+      addlike: ${{ steps.filter.outputs.addlike }}
+      getlikes: ${{ steps.filter.outputs.getlikes }}
+      removelike: ${{ steps.filter.outputs.removelike }}
+    steps:
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            addlike:
+              - 'add-like/**'
+            getlikes:
+              - 'get-likes/**'
+            removelike:
+              - 'remove-like/**'
+
+  add_like_service:
+    needs: changes
+    if: needs.changes.outputs.addlike == 'true'
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -93,13 +107,9 @@ jobs:
               ${{ secrets.DOCKERHUB_USERNAME }}/add-like:${{ github.sha }}
 
   get_likes_service:
-    name: CI/CD get-likes
+    needs: changes
+    if: needs.changes.outputs.getlikes == 'true'
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (
-        contains(join(github.event.commits.*.modified, ','), 'get-likes/') ||
-        contains(join(github.event.commits.*.added, ','), 'get-likes/') ||
-        contains(join(github.event.commits.*.removed, ','), 'get-likes/')
-      )
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -151,13 +161,9 @@ jobs:
               ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:${{ github.sha }}
 
   remove_like_service:
-    name: CI/CD remove-like
+    needs: changes
+    if: needs.changes.outputs.removelike == 'true'
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && (
-        contains(join(github.event.commits.*.modified, ','), 'remove-like/') ||
-        contains(join(github.event.commits.*.added, ','), 'remove-like/') ||
-        contains(join(github.event.commits.*.removed, ','), 'remove-like/')
-      )
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
