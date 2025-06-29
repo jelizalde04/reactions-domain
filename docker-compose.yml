@@ -1,9 +1,8 @@
-version: "3.9"
 services:
   add-like:
     build:
       context: ./add-like
-    image: $DOCKERHUB_USERNAME/add-like:latest
+    image: ${DOCKERHUB_USERNAME}/add-like:latest
     ports:
       - "6001:6001"
     env_file:
@@ -12,7 +11,7 @@ services:
   get-likes:
     build:
       context: ./get-likes
-    image: $DOCKERHUB_USERNAME/get-likes:latest
+    image: ${DOCKERHUB_USERNAME}/get-likes:latest
     ports:
       - "6003:6003"
     env_file:
@@ -21,7 +20,7 @@ services:
   remove-like:
     build:
       context: ./remove-like
-    image: $DOCKERHUB_USERNAME/remove-like:latest
+    image: ${DOCKERHUB_USERNAME}/remove-like:latest
     ports:
       - "6002:6002"
     env_file:
