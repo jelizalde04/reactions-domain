@@ -22,7 +22,7 @@ def test_main_app_importable():
     spec = importlib.util.spec_from_file_location("app", app_path)
     assert spec is not None, "app.py cannot be found"
     module = importlib.util.module_from_spec(spec)
-    try
+    try:
         spec.loader.exec_module(module)
     except Exception as e:
         assert False, f"app.py could not be imported: {e}" 
