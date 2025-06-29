@@ -100,8 +100,7 @@ jobs:
         run: cat Dockerfile || echo "NO DOCKERFILE FOUND"
 
       - name: Construir imagen Docker (buildx)
-        working-directory: ./add-like
-        run: docker buildx build --load -t ${{ secrets.DOCKERHUB_USERNAME }}/add-like:${{ github.sha }} .
+        run: docker buildx build --load -t ${{ secrets.DOCKERHUB_USERNAME }}/add-like:${{ github.sha }} ./add-like
 
       - name: Login a DockerHub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
@@ -185,8 +184,7 @@ jobs:
         run: cat Dockerfile || echo "NO DOCKERFILE FOUND"
 
       - name: Construir imagen Docker (buildx)
-        working-directory: ./get-likes
-        run: docker buildx build --load -t ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:${{ github.sha }} .
+        run: docker buildx build --load -t ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:${{ github.sha }} ./get-likes
 
       - name: Login a DockerHub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
@@ -270,8 +268,7 @@ jobs:
         run: cat Dockerfile || echo "NO DOCKERFILE FOUND"
 
       - name: Construir imagen Docker (buildx)
-        working-directory: ./remove-like
-        run: docker buildx build --load -t ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:${{ github.sha }} .
+        run: docker buildx build --load -t ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:${{ github.sha }} ./remove-like
 
       - name: Login a DockerHub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
