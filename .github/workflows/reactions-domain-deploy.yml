@@ -1,4 +1,4 @@
-name: Docker Build, Push & Deploy by Service (sin buildx, tag latest)
+name: Docker Build, Push & Deploy by Service (jobs separados)
 
 on:
   push:
@@ -53,13 +53,12 @@ jobs:
             removelike:
               - 'remove-like/**'
 
-  add_like_service:
+  add_like_tests:
     needs: changes
     if: needs.changes.outputs.addlike == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Generate .env for tests
         working-directory: ./add-like
         run: |
@@ -76,32 +75,32 @@ jobs:
           REDIS_HOST=${{ secrets.REDIS_HOST }}
           REDIS_PORT=${{ secrets.REDIS_PORT }}
           EOF
-
       - name: Install dependencies & run tests
         working-directory: ./add-like
         run: |
           pip install -r requirements.txt
           pytest
 
+  add_like_build:
+    needs: [changes, add_like_tests]
+    if: needs.changes.outputs.addlike == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - name: Debug - List files before Docker build
         working-directory: ./add-like
         run: ls -l
-
       - name: Debug - Show Dockerfile content
         working-directory: ./add-like
         run: cat Dockerfile || echo "NO DOCKERFILE FOUND"
-
       - name: Build Docker image
         working-directory: ./add-like
         run: |
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest .
-
       - name: Login to DockerHub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-
       - name: Push image to DockerHub
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest
-
       - name: Deploy in EC2 via SSH (with .env)
         uses: appleboy/ssh-action@v0.1.10
         with:
@@ -131,13 +130,12 @@ jobs:
               -p 6001:6001 \
               ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest
 
-  get_likes_service:
+  get_likes_tests:
     needs: changes
     if: needs.changes.outputs.getlikes == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Generate .env for tests
         working-directory: ./get-likes
         run: |
@@ -154,32 +152,32 @@ jobs:
           REDIS_HOST=${{ secrets.REDIS_HOST }}
           REDIS_PORT=${{ secrets.REDIS_PORT }}
           EOF
-
       - name: Install dependencies & run tests
         working-directory: ./get-likes
         run: |
           pip install -r requirements.txt
           pytest
 
+  get_likes_build:
+    needs: [changes, get_likes_tests]
+    if: needs.changes.outputs.getlikes == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - name: Debug - List files before Docker build
         working-directory: ./get-likes
         run: ls -l
-
       - name: Debug - Show Dockerfile content
         working-directory: ./get-likes
         run: cat Dockerfile || echo "NO DOCKERFILE FOUND"
-
       - name: Build Docker image
         working-directory: ./get-likes
         run: |
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest .
-
       - name: Login to DockerHub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-
       - name: Push image to DockerHub
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest
-
       - name: Deploy in EC2 via SSH (with .env)
         uses: appleboy/ssh-action@v0.1.10
         with:
@@ -209,13 +207,12 @@ jobs:
               -p 6003:6003 \
               ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest
 
-  remove_like_service:
+  remove_like_tests:
     needs: changes
     if: needs.changes.outputs.removelike == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Generate .env for tests
         working-directory: ./remove-like
         run: |
@@ -232,32 +229,32 @@ jobs:
           REDIS_HOST=${{ secrets.REDIS_HOST }}
           REDIS_PORT=${{ secrets.REDIS_PORT }}
           EOF
-
       - name: Install dependencies & run tests
         working-directory: ./remove-like
         run: |
           pip install -r requirements.txt
           pytest
 
+  remove_like_build:
+    needs: [changes, remove_like_tests]
+    if: needs.changes.outputs.removelike == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - name: Debug - List files before Docker build
         working-directory: ./remove-like
         run: ls -l
-
       - name: Debug - Show Dockerfile content
         working-directory: ./remove-like
         run: cat Dockerfile || echo "NO DOCKERFILE FOUND"
-
       - name: Build Docker image
         working-directory: ./remove-like
         run: |
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:latest .
-
       - name: Login to DockerHub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-
       - name: Push image to DockerHub
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:latest
-
       - name: Deploy in EC2 via SSH (with .env)
         uses: appleboy/ssh-action@v0.1.10
         with:
