@@ -1,4 +1,4 @@
-name: CI/CD Reactions Microservices
+name: CI/CD Reactions Microservices (docker-compose)
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
       - 'add-like/**'
       - 'get-likes/**'
       - 'remove-like/**'
+      - 'docker-compose.yml'
       - '.github/workflows/**'
   pull_request:
     branches: [main]
@@ -14,6 +15,7 @@ on:
       - 'add-like/**'
       - 'get-likes/**'
       - 'remove-like/**'
+      - 'docker-compose.yml'
       - '.github/workflows/**'
 
 env:
@@ -21,32 +23,21 @@ env:
   DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
 jobs:
-  changes:
+  build_and_push:
     runs-on: ubuntu-latest
-    outputs:
-      add_like: ${{ steps.filter.outputs.add_like }}
-      get_likes: ${{ steps.filter.outputs.get_likes }}
-      remove_like: ${{ steps.filter.outputs.remove_like }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            add_like:
-              - 'add-like/**'
-            get_likes:
-              - 'get-likes/**'
-            remove_like:
-              - 'remove-like/**'
 
-  add_like:
-    needs: changes
-    runs-on: ubuntu-latest
-    if: needs.changes.outputs.add_like == 'true'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Generate .env for tests
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ env.DOCKERHUB_TOKEN }}
+
+      - name: Generate .env for add-like
         working-directory: ./add-like
         run: |
           cat <<EOF > .env
@@ -63,182 +54,79 @@ jobs:
           REDIS_PORT=${{ secrets.REDIS_PORT }}
           EOF
 
-      - name: Install dependencies & run tests
-        working-directory: ./add-like
+      - name: Generate .env for get-likes
+        working-directory: ./get-likes
         run: |
-          pip install -r requirements.txt
-          pytest
+          cat <<EOF > .env
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          PET_DB_NAME=${{ secrets.PET_DB_NAME }}
+          POST_DB_NAME=${{ secrets.POST_DB_NAME }}
+          REACTIONS_DB_NAME=${{ secrets.REACTIONS_DB_NAME }}
+          WEBHOOK_NOTIFICATIONS_URL=${{ secrets.WEBHOOK_NOTIFICATIONS_URL }}
+          REDIS_HOST=${{ secrets.REDIS_HOST }}
+          REDIS_PORT=${{ secrets.REDIS_PORT }}
+          EOF
 
-      - name: Build Docker image
-        working-directory: ./add-like
-        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest .
+      - name: Generate .env for remove-like
+        working-directory: ./remove-like
+        run: |
+          cat <<EOF > .env
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          PET_DB_NAME=${{ secrets.PET_DB_NAME }}
+          POST_DB_NAME=${{ secrets.POST_DB_NAME }}
+          REACTIONS_DB_NAME=${{ secrets.REACTIONS_DB_NAME }}
+          WEBHOOK_NOTIFICATIONS_URL=${{ secrets.WEBHOOK_NOTIFICATIONS_URL }}
+          REDIS_HOST=${{ secrets.REDIS_HOST }}
+          REDIS_PORT=${{ secrets.REDIS_PORT }}
+          EOF
 
-      - name: Login to DockerHub
-        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+      - name: Build all images
+        run: |
+          docker compose build
 
-      - name: Push image to DockerHub
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest
+      - name: Push all images to DockerHub
+        run: |
+          docker compose push
 
-      - name: Deploy in EC2 via SSH (with .env)
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build_and_push
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy in EC2 via SSH
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cat <<EOF > /home/ubuntu/add-like.env
-            DB_HOST=${{ secrets.DB_HOST }}
-            DB_USER=${{ secrets.DB_USER }}
-            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            DB_PORT=${{ secrets.DB_PORT }}
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            PET_DB_NAME=${{ secrets.PET_DB_NAME }}
-            POST_DB_NAME=${{ secrets.POST_DB_NAME }}
-            REACTIONS_DB_NAME=${{ secrets.REACTIONS_DB_NAME }}
-            WEBHOOK_NOTIFICATIONS_URL=${{ secrets.WEBHOOK_NOTIFICATIONS_URL }}
-            REDIS_HOST=${{ secrets.REDIS_HOST }}
-            REDIS_PORT=${{ secrets.REDIS_PORT }}
-            EOF
-
             docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:latest
+
             docker stop add-like || true && docker rm add-like || true
+            docker stop get-likes || true && docker rm get-likes || true
+            docker stop remove-like || true && docker rm remove-like || true
+
             docker run -d --name add-like \
               --env-file /home/ubuntu/add-like.env \
               -p 6001:6001 \
               ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest
 
-  get_likes:
-    needs: changes
-    runs-on: ubuntu-latest
-    if: needs.changes.outputs.get_likes == 'true'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Generate .env for tests
-        working-directory: ./get-likes
-        run: |
-          cat <<EOF > .env
-          DB_HOST=${{ secrets.DB_HOST }}
-          DB_USER=${{ secrets.DB_USER }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          DB_PORT=${{ secrets.DB_PORT }}
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          PET_DB_NAME=${{ secrets.PET_DB_NAME }}
-          POST_DB_NAME=${{ secrets.POST_DB_NAME }}
-          REACTIONS_DB_NAME=${{ secrets.REACTIONS_DB_NAME }}
-          WEBHOOK_NOTIFICATIONS_URL=${{ secrets.WEBHOOK_NOTIFICATIONS_URL }}
-          REDIS_HOST=${{ secrets.REDIS_HOST }}
-          REDIS_PORT=${{ secrets.REDIS_PORT }}
-          EOF
-
-      - name: Install dependencies & run tests
-        working-directory: ./get-likes
-        run: |
-          pip install -r requirements.txt
-          pytest
-
-      - name: Build Docker image
-        working-directory: ./get-likes
-        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest .
-
-      - name: Login to DockerHub
-        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-
-      - name: Push image to DockerHub
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest
-
-      - name: Deploy in EC2 via SSH (with .env)
-        uses: appleboy/ssh-action@v0.1.10
-        with:
-          host: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            cat <<EOF > /home/ubuntu/get-likes.env
-            DB_HOST=${{ secrets.DB_HOST }}
-            DB_USER=${{ secrets.DB_USER }}
-            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            DB_PORT=${{ secrets.DB_PORT }}
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            PET_DB_NAME=${{ secrets.PET_DB_NAME }}
-            POST_DB_NAME=${{ secrets.POST_DB_NAME }}
-            REACTIONS_DB_NAME=${{ secrets.REACTIONS_DB_NAME }}
-            WEBHOOK_NOTIFICATIONS_URL=${{ secrets.WEBHOOK_NOTIFICATIONS_URL }}
-            REDIS_HOST=${{ secrets.REDIS_HOST }}
-            REDIS_PORT=${{ secrets.REDIS_PORT }}
-            EOF
-
-            docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest
-            docker stop get-likes || true && docker rm get-likes || true
             docker run -d --name get-likes \
               --env-file /home/ubuntu/get-likes.env \
               -p 6003:6003 \
               ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest
 
-  remove_like:
-    needs: changes
-    runs-on: ubuntu-latest
-    if: needs.changes.outputs.remove_like == 'true'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Generate .env for tests
-        working-directory: ./remove-like
-        run: |
-          cat <<EOF > .env
-          DB_HOST=${{ secrets.DB_HOST }}
-          DB_USER=${{ secrets.DB_USER }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          DB_PORT=${{ secrets.DB_PORT }}
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          PET_DB_NAME=${{ secrets.PET_DB_NAME }}
-          POST_DB_NAME=${{ secrets.POST_DB_NAME }}
-          REACTIONS_DB_NAME=${{ secrets.REACTIONS_DB_NAME }}
-          WEBHOOK_NOTIFICATIONS_URL=${{ secrets.WEBHOOK_NOTIFICATIONS_URL }}
-          REDIS_HOST=${{ secrets.REDIS_HOST }}
-          REDIS_PORT=${{ secrets.REDIS_PORT }}
-          EOF
-
-      - name: Install dependencies & run tests
-        working-directory: ./remove-like
-        run: |
-          pip install -r requirements.txt
-          pytest
-
-      - name: Build Docker image
-        working-directory: ./remove-like
-        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:latest .
-
-      - name: Login to DockerHub
-        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
-
-      - name: Push image to DockerHub
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:latest
-
-      - name: Deploy in EC2 via SSH (with .env)
-        uses: appleboy/ssh-action@v0.1.10
-        with:
-          host: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            cat <<EOF > /home/ubuntu/remove-like.env
-            DB_HOST=${{ secrets.DB_HOST }}
-            DB_USER=${{ secrets.DB_USER }}
-            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            DB_PORT=${{ secrets.DB_PORT }}
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            PET_DB_NAME=${{ secrets.PET_DB_NAME }}
-            POST_DB_NAME=${{ secrets.POST_DB_NAME }}
-            REACTIONS_DB_NAME=${{ secrets.REACTIONS_DB_NAME }}
-            WEBHOOK_NOTIFICATIONS_URL=${{ secrets.WEBHOOK_NOTIFICATIONS_URL }}
-            REDIS_HOST=${{ secrets.REDIS_HOST }}
-            REDIS_PORT=${{ secrets.REDIS_PORT }}
-            EOF
-
-            docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:latest
-            docker stop remove-like || true && docker rm remove-like || true
             docker run -d --name remove-like \
               --env-file /home/ubuntu/remove-like.env \
               -p 6002:6002 \
