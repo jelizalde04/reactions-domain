@@ -1,4 +1,4 @@
-name: Docker Build, Push & Deploy by Service (simple y funcional, sin buildx)
+name: Docker Build, Push & Deploy by Service (sin buildx, tag latest)
 
 on:
   push:
@@ -94,13 +94,13 @@ jobs:
       - name: Build Docker image
         working-directory: ./add-like
         run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/add-like:${{ github.sha }} .
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest .
 
       - name: Login to DockerHub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
       - name: Push image to DockerHub
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/add-like:${{ github.sha }}
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest
 
       - name: Deploy in EC2 via SSH (with .env)
         uses: appleboy/ssh-action@v0.1.10
@@ -124,12 +124,12 @@ jobs:
             EOF
 
             docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/add-like:${{ github.sha }}
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest
             docker stop add-like || true && docker rm add-like || true
             docker run -d --name add-like \
               --env-file /home/ubuntu/add-like.env \
               -p 6001:6001 \
-              ${{ secrets.DOCKERHUB_USERNAME }}/add-like:${{ github.sha }}
+              ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest
 
   get_likes_service:
     needs: changes
@@ -172,13 +172,13 @@ jobs:
       - name: Build Docker image
         working-directory: ./get-likes
         run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:${{ github.sha }} .
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest .
 
       - name: Login to DockerHub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
       - name: Push image to DockerHub
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:${{ github.sha }}
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest
 
       - name: Deploy in EC2 via SSH (with .env)
         uses: appleboy/ssh-action@v0.1.10
@@ -202,12 +202,12 @@ jobs:
             EOF
 
             docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:${{ github.sha }}
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest
             docker stop get-likes || true && docker rm get-likes || true
             docker run -d --name get-likes \
               --env-file /home/ubuntu/get-likes.env \
               -p 6003:6003 \
-              ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:${{ github.sha }}
+              ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest
 
   remove_like_service:
     needs: changes
@@ -250,13 +250,13 @@ jobs:
       - name: Build Docker image
         working-directory: ./remove-like
         run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:${{ github.sha }} .
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:latest .
 
       - name: Login to DockerHub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
       - name: Push image to DockerHub
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:${{ github.sha }}
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:latest
 
       - name: Deploy in EC2 via SSH (with .env)
         uses: appleboy/ssh-action@v0.1.10
@@ -280,9 +280,9 @@ jobs:
             EOF
 
             docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:${{ github.sha }}
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:latest
             docker stop remove-like || true && docker rm remove-like || true
             docker run -d --name remove-like \
               --env-file /home/ubuntu/remove-like.env \
               -p 6002:6002 \
-              ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:${{ github.sha }}
+              ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:latest
