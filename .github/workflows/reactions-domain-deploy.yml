@@ -1,4 +1,4 @@
-name: Docker Build, Push & Deploy by Service (with .env for Tests and Deploy)
+name: Docker Build, Push & Deploy by Service (with Debug & .env for Tests and Deploy)
 
 on:
   push:
@@ -84,6 +84,18 @@ jobs:
           pip install -r requirements.txt
           pytest
 
+      - name: Debug - List files before Docker build
+        working-directory: ./add-like
+        run: ls -l
+
+      - name: Debug - Show current path
+        working-directory: ./add-like
+        run: pwd
+
+      - name: Debug - Show Dockerfile content
+        working-directory: ./add-like
+        run: cat Dockerfile || echo "NO DOCKERFILE FOUND"
+
       - name: Build Docker image
         working-directory: ./add-like
         run: |
@@ -155,6 +167,18 @@ jobs:
           pip install -r requirements.txt
           pytest
 
+      - name: Debug - List files before Docker build
+        working-directory: ./get-likes
+        run: ls -l
+
+      - name: Debug - Show current path
+        working-directory: ./get-likes
+        run: pwd
+
+      - name: Debug - Show Dockerfile content
+        working-directory: ./get-likes
+        run: cat Dockerfile || echo "NO DOCKERFILE FOUND"
+
       - name: Build Docker image
         working-directory: ./get-likes
         run: |
@@ -225,6 +249,18 @@ jobs:
         run: |
           pip install -r requirements.txt
           pytest
+
+      - name: Debug - List files before Docker build
+        working-directory: ./remove-like
+        run: ls -l
+
+      - name: Debug - Show current path
+        working-directory: ./remove-like
+        run: pwd
+
+      - name: Debug - Show Dockerfile content
+        working-directory: ./remove-like
+        run: cat Dockerfile || echo "NO DOCKERFILE FOUND"
 
       - name: Build Docker image
         working-directory: ./remove-like
