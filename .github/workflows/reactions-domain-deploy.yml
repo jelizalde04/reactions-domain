@@ -83,40 +83,19 @@ jobs:
       - name: Push add-like image
         run: docker push ${{ env.DOCKERHUB_USERNAME }}/add-like:latest
 
-  deploy_add_like:
+  # ------- DEPLOY ADD-LIKE JOBS -------
+  deploy_add_like_test:
     needs: build_and_push_add_like
     runs-on: ubuntu-latest
-    if: needs.changes.outputs.add_like == 'true'
+    if: needs.changes.outputs.add_like == 'true' && github.ref == 'refs/heads/test'
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set environment for deploy (add-like)
-        id: set_env
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.base_ref }}" == "main" ]]; then
-            echo "SSH_KEY=${{ secrets.EC2_SSH_KEY_PROD }}" >> $GITHUB_ENV
-            echo "EC2_HOST=${{ secrets.EC2_REACTIONS_DOMAIN_PROD }}" >> $GITHUB_ENV
-            echo "DEPLOY_ENV=prod" >> $GITHUB_ENV
-          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "SSH_KEY=${{ secrets.EC2_SSH_KEY_PROD }}" >> $GITHUB_ENV
-            echo "EC2_HOST=${{ secrets.EC2_REACTIONS_DOMAIN_PROD }}" >> $GITHUB_ENV
-            echo "DEPLOY_ENV=prod" >> $GITHUB_ENV
-          elif [[ "${{ github.ref }}" == "refs/heads/test" ]]; then
-            echo "SSH_KEY=${{ secrets.EC2_SSH_KEY }}" >> $GITHUB_ENV
-            echo "EC2_HOST=${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}" >> $GITHUB_ENV
-            echo "DEPLOY_ENV=test" >> $GITHUB_ENV
-          else
-            echo "No deploy target"
-            exit 1
-          fi
-
-      - name: Deploy add-like to EC2 (test)
-        if: env.DEPLOY_ENV == 'test'
+      - name: Deploy add-like to EC2 TEST
         uses: appleboy/ssh-action@v0.1.10
         with:
-          host: ${{ env.EC2_HOST }}
+          host: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
           username: ubuntu
-          key: ${{ env.SSH_KEY }}
+          key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cat <<EOF > /home/ubuntu/add-like.env
             DB_HOST=${{ secrets.DB_HOST }}
@@ -140,13 +119,18 @@ jobs:
               -p 6001:6001 \
               ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest
 
-      - name: Deploy add-like to EC2 (prod)
-        if: env.DEPLOY_ENV == 'prod'
+  deploy_add_like_prod:
+    needs: build_and_push_add_like
+    runs-on: ubuntu-latest
+    if: needs.changes.outputs.add_like == 'true' && (github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main'))
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy add-like to EC2 PROD
         uses: appleboy/ssh-action@v0.1.10
         with:
-          host: ${{ env.EC2_HOST }}
+          host: ${{ secrets.EC2_REACTIONS_DOMAIN_PROD }}
           username: ubuntu
-          key: ${{ env.SSH_KEY }}
+          key: ${{ secrets.EC2_SSH_KEY_PROD }}
           script: |
             cat <<EOF > /home/ubuntu/add-like.env
             DB_HOST=${{ secrets.DB_HOST }}
@@ -213,40 +197,18 @@ jobs:
       - name: Push get-likes image
         run: docker push ${{ env.DOCKERHUB_USERNAME }}/get-likes:latest
 
-  deploy_get_likes:
+  deploy_get_likes_test:
     needs: build_and_push_get_likes
     runs-on: ubuntu-latest
-    if: needs.changes.outputs.get_likes == 'true'
+    if: needs.changes.outputs.get_likes == 'true' && github.ref == 'refs/heads/test'
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set environment for deploy (get-likes)
-        id: set_env
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.base_ref }}" == "main" ]]; then
-            echo "SSH_KEY=${{ secrets.EC2_SSH_KEY_PROD }}" >> $GITHUB_ENV
-            echo "EC2_HOST=${{ secrets.EC2_REACTIONS_DOMAIN_PROD }}" >> $GITHUB_ENV
-            echo "DEPLOY_ENV=prod" >> $GITHUB_ENV
-          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "SSH_KEY=${{ secrets.EC2_SSH_KEY_PROD }}" >> $GITHUB_ENV
-            echo "EC2_HOST=${{ secrets.EC2_REACTIONS_DOMAIN_PROD }}" >> $GITHUB_ENV
-            echo "DEPLOY_ENV=prod" >> $GITHUB_ENV
-          elif [[ "${{ github.ref }}" == "refs/heads/test" ]]; then
-            echo "SSH_KEY=${{ secrets.EC2_SSH_KEY }}" >> $GITHUB_ENV
-            echo "EC2_HOST=${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}" >> $GITHUB_ENV
-            echo "DEPLOY_ENV=test" >> $GITHUB_ENV
-          else
-            echo "No deploy target"
-            exit 1
-          fi
-
-      - name: Deploy get-likes to EC2 (test)
-        if: env.DEPLOY_ENV == 'test'
+      - name: Deploy get-likes to EC2 TEST
         uses: appleboy/ssh-action@v0.1.10
         with:
-          host: ${{ env.EC2_HOST }}
+          host: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
           username: ubuntu
-          key: ${{ env.SSH_KEY }}
+          key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cat <<EOF > /home/ubuntu/get-likes.env
             DB_HOST=${{ secrets.DB_HOST }}
@@ -270,13 +232,18 @@ jobs:
               -p 6003:6003 \
               ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest
 
-      - name: Deploy get-likes to EC2 (prod)
-        if: env.DEPLOY_ENV == 'prod'
+  deploy_get_likes_prod:
+    needs: build_and_push_get_likes
+    runs-on: ubuntu-latest
+    if: needs.changes.outputs.get_likes == 'true' && (github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main'))
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy get-likes to EC2 PROD
         uses: appleboy/ssh-action@v0.1.10
         with:
-          host: ${{ env.EC2_HOST }}
+          host: ${{ secrets.EC2_REACTIONS_DOMAIN_PROD }}
           username: ubuntu
-          key: ${{ env.SSH_KEY }}
+          key: ${{ secrets.EC2_SSH_KEY_PROD }}
           script: |
             cat <<EOF > /home/ubuntu/get-likes.env
             DB_HOST=${{ secrets.DB_HOST }}
@@ -343,40 +310,18 @@ jobs:
       - name: Push remove-like image
         run: docker push ${{ env.DOCKERHUB_USERNAME }}/remove-like:latest
 
-  deploy_remove_like:
+  deploy_remove_like_test:
     needs: build_and_push_remove_like
     runs-on: ubuntu-latest
-    if: needs.changes.outputs.remove_like == 'true'
+    if: needs.changes.outputs.remove_like == 'true' && github.ref == 'refs/heads/test'
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set environment for deploy (remove-like)
-        id: set_env
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.base_ref }}" == "main" ]]; then
-            echo "SSH_KEY=${{ secrets.EC2_SSH_KEY_PROD }}" >> $GITHUB_ENV
-            echo "EC2_HOST=${{ secrets.EC2_REACTIONS_DOMAIN_PROD }}" >> $GITHUB_ENV
-            echo "DEPLOY_ENV=prod" >> $GITHUB_ENV
-          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "SSH_KEY=${{ secrets.EC2_SSH_KEY_PROD }}" >> $GITHUB_ENV
-            echo "EC2_HOST=${{ secrets.EC2_REACTIONS_DOMAIN_PROD }}" >> $GITHUB_ENV
-            echo "DEPLOY_ENV=prod" >> $GITHUB_ENV
-          elif [[ "${{ github.ref }}" == "refs/heads/test" ]]; then
-            echo "SSH_KEY=${{ secrets.EC2_SSH_KEY }}" >> $GITHUB_ENV
-            echo "EC2_HOST=${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}" >> $GITHUB_ENV
-            echo "DEPLOY_ENV=test" >> $GITHUB_ENV
-          else
-            echo "No deploy target"
-            exit 1
-          fi
-
-      - name: Deploy remove-like to EC2 (test)
-        if: env.DEPLOY_ENV == 'test'
+      - name: Deploy remove-like to EC2 TEST
         uses: appleboy/ssh-action@v0.1.10
         with:
-          host: ${{ env.EC2_HOST }}
+          host: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
           username: ubuntu
-          key: ${{ env.SSH_KEY }}
+          key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cat <<EOF > /home/ubuntu/remove-like.env
             DB_HOST=${{ secrets.DB_HOST }}
@@ -400,13 +345,18 @@ jobs:
               -p 6002:6002 \
               ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:latest
 
-      - name: Deploy remove-like to EC2 (prod)
-        if: env.DEPLOY_ENV == 'prod'
+  deploy_remove_like_prod:
+    needs: build_and_push_remove_like
+    runs-on: ubuntu-latest
+    if: needs.changes.outputs.remove_like == 'true' && (github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && github.base_ref == 'main'))
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy remove-like to EC2 PROD
         uses: appleboy/ssh-action@v0.1.10
         with:
-          host: ${{ env.EC2_HOST }}
+          host: ${{ secrets.EC2_REACTIONS_DOMAIN_PROD }}
           username: ubuntu
-          key: ${{ env.SSH_KEY }}
+          key: ${{ secrets.EC2_SSH_KEY_PROD }}
           script: |
             cat <<EOF > /home/ubuntu/remove-like.env
             DB_HOST=${{ secrets.DB_HOST }}
