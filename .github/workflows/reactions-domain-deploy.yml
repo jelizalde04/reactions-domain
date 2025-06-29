@@ -61,7 +61,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Generate .env for tests
+      - name: Instalar y preparar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Generar .env para tests
         working-directory: ./add-like
         run: |
           cat <<EOF > .env
@@ -78,36 +81,36 @@ jobs:
           REDIS_PORT=${{ secrets.REDIS_PORT }}
           EOF
 
-      - name: Install dependencies & run tests
+      - name: Instalar dependencias y ejecutar tests
         working-directory: ./add-like
         run: |
           pip install -r requirements.txt
           pytest
 
-      - name: Debug - List files before Docker build
+      - name: Debug - Listar archivos antes del build Docker
         working-directory: ./add-like
         run: ls -l
 
-      - name: Debug - Show current path
+      - name: Debug - Mostrar ruta actual
         working-directory: ./add-like
         run: pwd
 
-      - name: Debug - Show Dockerfile content
+      - name: Debug - Mostrar contenido de Dockerfile
         working-directory: ./add-like
         run: cat Dockerfile || echo "NO DOCKERFILE FOUND"
 
-      - name: Build Docker image
+      - name: Construir imagen Docker (buildx)
         working-directory: ./add-like
         run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/add-like:${{ github.sha }} .
+          docker buildx build --load -t ${{ secrets.DOCKERHUB_USERNAME }}/add-like:${{ github.sha }} .
 
-      - name: Login to DockerHub
+      - name: Login a DockerHub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-      - name: Push image to DockerHub
+      - name: Subir imagen a DockerHub
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/add-like:${{ github.sha }}
 
-      - name: Deploy in EC2 via SSH (with .env)
+      - name: Desplegar en EC2 por SSH (con .env)
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
@@ -144,7 +147,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Generate .env for tests
+      - name: Instalar y preparar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Generar .env para tests
         working-directory: ./get-likes
         run: |
           cat <<EOF > .env
@@ -161,36 +167,36 @@ jobs:
           REDIS_PORT=${{ secrets.REDIS_PORT }}
           EOF
 
-      - name: Install dependencies & run tests
+      - name: Instalar dependencias y ejecutar tests
         working-directory: ./get-likes
         run: |
           pip install -r requirements.txt
           pytest
 
-      - name: Debug - List files before Docker build
+      - name: Debug - Listar archivos antes del build Docker
         working-directory: ./get-likes
         run: ls -l
 
-      - name: Debug - Show current path
+      - name: Debug - Mostrar ruta actual
         working-directory: ./get-likes
         run: pwd
 
-      - name: Debug - Show Dockerfile content
+      - name: Debug - Mostrar contenido de Dockerfile
         working-directory: ./get-likes
         run: cat Dockerfile || echo "NO DOCKERFILE FOUND"
 
-      - name: Build Docker image
+      - name: Construir imagen Docker (buildx)
         working-directory: ./get-likes
         run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:${{ github.sha }} .
+          docker buildx build --load -t ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:${{ github.sha }} .
 
-      - name: Login to DockerHub
+      - name: Login a DockerHub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-      - name: Push image to DockerHub
+      - name: Subir imagen a DockerHub
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:${{ github.sha }}
 
-      - name: Deploy in EC2 via SSH (with .env)
+      - name: Desplegar en EC2 por SSH (con .env)
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
@@ -227,7 +233,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Generate .env for tests
+      - name: Instalar y preparar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Generar .env para tests
         working-directory: ./remove-like
         run: |
           cat <<EOF > .env
@@ -244,36 +253,36 @@ jobs:
           REDIS_PORT=${{ secrets.REDIS_PORT }}
           EOF
 
-      - name: Install dependencies & run tests
+      - name: Instalar dependencias y ejecutar tests
         working-directory: ./remove-like
         run: |
           pip install -r requirements.txt
           pytest
 
-      - name: Debug - List files before Docker build
+      - name: Debug - Listar archivos antes del build Docker
         working-directory: ./remove-like
         run: ls -l
 
-      - name: Debug - Show current path
+      - name: Debug - Mostrar ruta actual
         working-directory: ./remove-like
         run: pwd
 
-      - name: Debug - Show Dockerfile content
+      - name: Debug - Mostrar contenido de Dockerfile
         working-directory: ./remove-like
         run: cat Dockerfile || echo "NO DOCKERFILE FOUND"
 
-      - name: Build Docker image
+      - name: Construir imagen Docker (buildx)
         working-directory: ./remove-like
         run: |
-          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:${{ github.sha }} .
+          docker buildx build --load -t ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:${{ github.sha }} .
 
-      - name: Login to DockerHub
+      - name: Login a DockerHub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-      - name: Push image to DockerHub
+      - name: Subir imagen a DockerHub
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:${{ github.sha }}
 
-      - name: Deploy in EC2 via SSH (with .env)
+      - name: Desplegar en EC2 por SSH (con .env)
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
