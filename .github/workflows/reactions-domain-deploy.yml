@@ -1,4 +1,4 @@
-name: Docker Build, Push & Deploy by Service (robusto y funcional)
+name: Docker Build, Push & Deploy by Service (simple y funcional, sin buildx)
 
 on:
   push:
@@ -58,8 +58,7 @@ jobs:
     if: needs.changes.outputs.addlike == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Generate .env for tests
         working-directory: ./add-like
@@ -137,8 +136,7 @@ jobs:
     if: needs.changes.outputs.getlikes == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Generate .env for tests
         working-directory: ./get-likes
@@ -216,8 +214,7 @@ jobs:
     if: needs.changes.outputs.removelike == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Generate .env for tests
         working-directory: ./remove-like
