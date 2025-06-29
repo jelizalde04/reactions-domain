@@ -92,12 +92,18 @@ jobs:
       - name: Set environment for deploy (add-like)
         id: set_env
         run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.event_name }}" == "pull_request" ]]; then
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.base_ref }}" == "main" ]]; then
             echo "SSH_KEY=${{ secrets.EC2_SSH_KEY_PROD }}" >> $GITHUB_ENV
             echo "EC2_HOST=${{ secrets.EC2_REACTIONS_DOMAIN_PROD }}" >> $GITHUB_ENV
-          else
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "SSH_KEY=${{ secrets.EC2_SSH_KEY_PROD }}" >> $GITHUB_ENV
+            echo "EC2_HOST=${{ secrets.EC2_REACTIONS_DOMAIN_PROD }}" >> $GITHUB_ENV
+          elif [[ "${{ github.ref }}" == "refs/heads/test" ]]; then
             echo "SSH_KEY=${{ secrets.EC2_SSH_KEY }}" >> $GITHUB_ENV
             echo "EC2_HOST=${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}" >> $GITHUB_ENV
+          else
+            echo "No deploy target"
+            exit 1
           fi
       - name: Deploy add-like to EC2
         uses: appleboy/ssh-action@v0.1.10
@@ -180,12 +186,18 @@ jobs:
       - name: Set environment for deploy (get-likes)
         id: set_env
         run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.event_name }}" == "pull_request" ]]; then
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.base_ref }}" == "main" ]]; then
             echo "SSH_KEY=${{ secrets.EC2_SSH_KEY_PROD }}" >> $GITHUB_ENV
             echo "EC2_HOST=${{ secrets.EC2_REACTIONS_DOMAIN_PROD }}" >> $GITHUB_ENV
-          else
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "SSH_KEY=${{ secrets.EC2_SSH_KEY_PROD }}" >> $GITHUB_ENV
+            echo "EC2_HOST=${{ secrets.EC2_REACTIONS_DOMAIN_PROD }}" >> $GITHUB_ENV
+          elif [[ "${{ github.ref }}" == "refs/heads/test" ]]; then
             echo "SSH_KEY=${{ secrets.EC2_SSH_KEY }}" >> $GITHUB_ENV
             echo "EC2_HOST=${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}" >> $GITHUB_ENV
+          else
+            echo "No deploy target"
+            exit 1
           fi
       - name: Deploy get-likes to EC2
         uses: appleboy/ssh-action@v0.1.10
@@ -268,12 +280,18 @@ jobs:
       - name: Set environment for deploy (remove-like)
         id: set_env
         run: |
-          if [[ "${{ github.ref }}" == "refs/heads/main" || "${{ github.event_name }}" == "pull_request" ]]; then
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.base_ref }}" == "main" ]]; then
             echo "SSH_KEY=${{ secrets.EC2_SSH_KEY_PROD }}" >> $GITHUB_ENV
             echo "EC2_HOST=${{ secrets.EC2_REACTIONS_DOMAIN_PROD }}" >> $GITHUB_ENV
-          else
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "SSH_KEY=${{ secrets.EC2_SSH_KEY_PROD }}" >> $GITHUB_ENV
+            echo "EC2_HOST=${{ secrets.EC2_REACTIONS_DOMAIN_PROD }}" >> $GITHUB_ENV
+          elif [[ "${{ github.ref }}" == "refs/heads/test" ]]; then
             echo "SSH_KEY=${{ secrets.EC2_SSH_KEY }}" >> $GITHUB_ENV
             echo "EC2_HOST=${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}" >> $GITHUB_ENV
+          else
+            echo "No deploy target"
+            exit 1
           fi
       - name: Deploy remove-like to EC2
         uses: appleboy/ssh-action@v0.1.10
