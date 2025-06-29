@@ -25,4 +25,4 @@ def test_main_app_importable():
     try:
         spec.loader.exec_module(module)
     except Exception as e:
-        assert False, f"app.py could not be imported: {e}"  
+        assert False, f"app.py could not be imported: {e}" 
