@@ -1,4 +1,4 @@
-name: Docker Build, Push & Deploy by Service (jobs separados)
+name: CI/CD Reactions Microservices
 
 on:
   push:
@@ -17,49 +17,30 @@ on:
       - '.github/workflows/**'
 
 env:
-  DB_HOST: ${{ secrets.DB_HOST }}
-  DB_USER: ${{ secrets.DB_USER }}
-  DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-  DB_PORT: ${{ secrets.DB_PORT }}
-  JWT_SECRET: ${{ secrets.JWT_SECRET }}
-  PET_DB_NAME: ${{ secrets.PET_DB_NAME }}
-  POST_DB_NAME: ${{ secrets.POST_DB_NAME }}
-  REACTIONS_DB_NAME: ${{ secrets.REACTIONS_DB_NAME }}
-  WEBHOOK_NOTIFICATIONS_URL: ${{ secrets.WEBHOOK_NOTIFICATIONS_URL }}
-  REDIS_HOST: ${{ secrets.REDIS_HOST }}
-  REDIS_PORT: ${{ secrets.REDIS_PORT }}
-  EC2_REACTIONS_DOMAIN_TEST: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
-  EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
   DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
   DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
 jobs:
-  changes:
+  # ADD-LIKE
+  add_like:
     runs-on: ubuntu-latest
-    outputs:
-      addlike: ${{ steps.filter.outputs.addlike }}
-      getlikes: ${{ steps.filter.outputs.getlikes }}
-      removelike: ${{ steps.filter.outputs.removelike }}
+    if: ${{ contains(github.event.head_commit.message, 'add-like/') || contains(github.event.pull_request.changed_files, 'add-like/') || github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            addlike:
-              - 'add-like/**'
-            getlikes:
-              - 'get-likes/**'
-            removelike:
-              - 'remove-like/**'
 
-  add_like_tests:
-    needs: changes
-    if: needs.changes.outputs.addlike == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      - name: Check if add-like changed
+        id: detect-changes
+        run: |
+          git fetch --prune --unshallow || git fetch --all
+          CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep "^add-like/" || true)
+          if [[ -n "$CHANGED" ]]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Generate .env for tests
+        if: steps.detect-changes.outputs.changed == 'true'
         working-directory: ./add-like
         run: |
           cat <<EOF > .env
@@ -75,33 +56,30 @@ jobs:
           REDIS_HOST=${{ secrets.REDIS_HOST }}
           REDIS_PORT=${{ secrets.REDIS_PORT }}
           EOF
+
       - name: Install dependencies & run tests
+        if: steps.detect-changes.outputs.changed == 'true'
         working-directory: ./add-like
         run: |
           pip install -r requirements.txt
           pytest
 
-  add_like_build:
-    needs: [changes, add_like_tests]
-    if: needs.changes.outputs.addlike == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Debug - List files before Docker build
-        working-directory: ./add-like
-        run: ls -l
-      - name: Debug - Show Dockerfile content
-        working-directory: ./add-like
-        run: cat Dockerfile || echo "NO DOCKERFILE FOUND"
       - name: Build Docker image
+        if: steps.detect-changes.outputs.changed == 'true'
         working-directory: ./add-like
         run: |
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest .
+
       - name: Login to DockerHub
+        if: steps.detect-changes.outputs.changed == 'true'
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
       - name: Push image to DockerHub
+        if: steps.detect-changes.outputs.changed == 'true'
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest
+
       - name: Deploy in EC2 via SSH (with .env)
+        if: steps.detect-changes.outputs.changed == 'true'
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
@@ -130,13 +108,26 @@ jobs:
               -p 6001:6001 \
               ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest
 
-  get_likes_tests:
-    needs: changes
-    if: needs.changes.outputs.getlikes == 'true'
+  # GET-LIKES
+  get_likes:
     runs-on: ubuntu-latest
+    if: ${{ contains(github.event.head_commit.message, 'get-likes/') || contains(github.event.pull_request.changed_files, 'get-likes/') || github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check if get-likes changed
+        id: detect-changes
+        run: |
+          git fetch --prune --unshallow || git fetch --all
+          CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep "^get-likes/" || true)
+          if [[ -n "$CHANGED" ]]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Generate .env for tests
+        if: steps.detect-changes.outputs.changed == 'true'
         working-directory: ./get-likes
         run: |
           cat <<EOF > .env
@@ -152,33 +143,30 @@ jobs:
           REDIS_HOST=${{ secrets.REDIS_HOST }}
           REDIS_PORT=${{ secrets.REDIS_PORT }}
           EOF
+
       - name: Install dependencies & run tests
+        if: steps.detect-changes.outputs.changed == 'true'
         working-directory: ./get-likes
         run: |
           pip install -r requirements.txt
           pytest
 
-  get_likes_build:
-    needs: [changes, get_likes_tests]
-    if: needs.changes.outputs.getlikes == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Debug - List files before Docker build
-        working-directory: ./get-likes
-        run: ls -l
-      - name: Debug - Show Dockerfile content
-        working-directory: ./get-likes
-        run: cat Dockerfile || echo "NO DOCKERFILE FOUND"
       - name: Build Docker image
+        if: steps.detect-changes.outputs.changed == 'true'
         working-directory: ./get-likes
         run: |
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest .
+
       - name: Login to DockerHub
+        if: steps.detect-changes.outputs.changed == 'true'
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
       - name: Push image to DockerHub
+        if: steps.detect-changes.outputs.changed == 'true'
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest
+
       - name: Deploy in EC2 via SSH (with .env)
+        if: steps.detect-changes.outputs.changed == 'true'
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
@@ -207,13 +195,26 @@ jobs:
               -p 6003:6003 \
               ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest
 
-  remove_like_tests:
-    needs: changes
-    if: needs.changes.outputs.removelike == 'true'
+  # REMOVE-LIKE
+  remove_like:
     runs-on: ubuntu-latest
+    if: ${{ contains(github.event.head_commit.message, 'remove-like/') || contains(github.event.pull_request.changed_files, 'remove-like/') || github.event_name == 'pull_request' }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check if remove-like changed
+        id: detect-changes
+        run: |
+          git fetch --prune --unshallow || git fetch --all
+          CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep "^remove-like/" || true)
+          if [[ -n "$CHANGED" ]]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Generate .env for tests
+        if: steps.detect-changes.outputs.changed == 'true'
         working-directory: ./remove-like
         run: |
           cat <<EOF > .env
@@ -229,33 +230,30 @@ jobs:
           REDIS_HOST=${{ secrets.REDIS_HOST }}
           REDIS_PORT=${{ secrets.REDIS_PORT }}
           EOF
+
       - name: Install dependencies & run tests
+        if: steps.detect-changes.outputs.changed == 'true'
         working-directory: ./remove-like
         run: |
           pip install -r requirements.txt
           pytest
 
-  remove_like_build:
-    needs: [changes, remove_like_tests]
-    if: needs.changes.outputs.removelike == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Debug - List files before Docker build
-        working-directory: ./remove-like
-        run: ls -l
-      - name: Debug - Show Dockerfile content
-        working-directory: ./remove-like
-        run: cat Dockerfile || echo "NO DOCKERFILE FOUND"
       - name: Build Docker image
+        if: steps.detect-changes.outputs.changed == 'true'
         working-directory: ./remove-like
         run: |
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:latest .
+
       - name: Login to DockerHub
+        if: steps.detect-changes.outputs.changed == 'true'
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
       - name: Push image to DockerHub
+        if: steps.detect-changes.outputs.changed == 'true'
         run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:latest
+
       - name: Deploy in EC2 via SSH (with .env)
+        if: steps.detect-changes.outputs.changed == 'true'
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
