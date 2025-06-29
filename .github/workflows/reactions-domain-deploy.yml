@@ -1,4 +1,4 @@
-name: Docker Build, Push & Deploy by Service (No Matrix, Reliable Paths Filter, .env en EC2)
+name: Docker Build, Push & Deploy by Service (with .env for Tests and Deploy)
 
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
       getlikes: ${{ steps.filter.outputs.getlikes }}
       removelike: ${{ steps.filter.outputs.removelike }}
     steps:
-      - uses: actions/checkout@v4   # 👈 Necesario para que el filtro vea el repo
+      - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -60,6 +60,23 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Generate .env for tests
+        working-directory: ./add-like
+        run: |
+          cat <<EOF > .env
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          PET_DB_NAME=${{ secrets.PET_DB_NAME }}
+          POST_DB_NAME=${{ secrets.POST_DB_NAME }}
+          REACTIONS_DB_NAME=${{ secrets.REACTIONS_DB_NAME }}
+          WEBHOOK_NOTIFICATIONS_URL=${{ secrets.WEBHOOK_NOTIFICATIONS_URL }}
+          REDIS_HOST=${{ secrets.REDIS_HOST }}
+          REDIS_PORT=${{ secrets.REDIS_PORT }}
+          EOF
 
       - name: Install dependencies & run tests
         working-directory: ./add-like
@@ -115,6 +132,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Generate .env for tests
+        working-directory: ./get-likes
+        run: |
+          cat <<EOF > .env
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          PET_DB_NAME=${{ secrets.PET_DB_NAME }}
+          POST_DB_NAME=${{ secrets.POST_DB_NAME }}
+          REACTIONS_DB_NAME=${{ secrets.REACTIONS_DB_NAME }}
+          WEBHOOK_NOTIFICATIONS_URL=${{ secrets.WEBHOOK_NOTIFICATIONS_URL }}
+          REDIS_HOST=${{ secrets.REDIS_HOST }}
+          REDIS_PORT=${{ secrets.REDIS_PORT }}
+          EOF
+
       - name: Install dependencies & run tests
         working-directory: ./get-likes
         run: |
@@ -168,6 +202,23 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Generate .env for tests
+        working-directory: ./remove-like
+        run: |
+          cat <<EOF > .env
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          PET_DB_NAME=${{ secrets.PET_DB_NAME }}
+          POST_DB_NAME=${{ secrets.POST_DB_NAME }}
+          REACTIONS_DB_NAME=${{ secrets.REACTIONS_DB_NAME }}
+          WEBHOOK_NOTIFICATIONS_URL=${{ secrets.WEBHOOK_NOTIFICATIONS_URL }}
+          REDIS_HOST=${{ secrets.REDIS_HOST }}
+          REDIS_PORT=${{ secrets.REDIS_PORT }}
+          EOF
 
       - name: Install dependencies & run tests
         working-directory: ./remove-like
