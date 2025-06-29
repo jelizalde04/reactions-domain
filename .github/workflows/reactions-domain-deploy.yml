@@ -1,4 +1,4 @@
-name: Docker Build, Push & Deploy by Service (with Debug & .env for Tests and Deploy)
+name: Docker Build, Push & Deploy by Service (robusto y funcional)
 
 on:
   push:
@@ -61,10 +61,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Instalar y preparar Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Generar .env para tests
+      - name: Generate .env for tests
         working-directory: ./add-like
         run: |
           cat <<EOF > .env
@@ -81,34 +78,32 @@ jobs:
           REDIS_PORT=${{ secrets.REDIS_PORT }}
           EOF
 
-      - name: Instalar dependencias y ejecutar tests
+      - name: Install dependencies & run tests
         working-directory: ./add-like
         run: |
           pip install -r requirements.txt
           pytest
 
-      - name: Debug - Listar archivos antes del build Docker
+      - name: Debug - List files before Docker build
         working-directory: ./add-like
         run: ls -l
 
-      - name: Debug - Mostrar ruta actual
-        working-directory: ./add-like
-        run: pwd
-
-      - name: Debug - Mostrar contenido de Dockerfile
+      - name: Debug - Show Dockerfile content
         working-directory: ./add-like
         run: cat Dockerfile || echo "NO DOCKERFILE FOUND"
 
-      - name: Construir imagen Docker (buildx)
-        run: docker buildx build --load -t ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest ./add-like
+      - name: Build Docker image
+        working-directory: ./add-like
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/add-like:${{ github.sha }} .
 
-      - name: Login a DockerHub
+      - name: Login to DockerHub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-      - name: Subir imagen a DockerHub
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest
+      - name: Push image to DockerHub
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/add-like:${{ github.sha }}
 
-      - name: Desplegar en EC2 por SSH (con .env)
+      - name: Deploy in EC2 via SSH (with .env)
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
@@ -130,12 +125,12 @@ jobs:
             EOF
 
             docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/add-like:${{ github.sha }}
             docker stop add-like || true && docker rm add-like || true
             docker run -d --name add-like \
               --env-file /home/ubuntu/add-like.env \
               -p 6001:6001 \
-              ${{ secrets.DOCKERHUB_USERNAME }}/add-like:latest
+              ${{ secrets.DOCKERHUB_USERNAME }}/add-like:${{ github.sha }}
 
   get_likes_service:
     needs: changes
@@ -145,10 +140,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Instalar y preparar Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Generar .env para tests
+      - name: Generate .env for tests
         working-directory: ./get-likes
         run: |
           cat <<EOF > .env
@@ -165,34 +157,32 @@ jobs:
           REDIS_PORT=${{ secrets.REDIS_PORT }}
           EOF
 
-      - name: Instalar dependencias y ejecutar tests
+      - name: Install dependencies & run tests
         working-directory: ./get-likes
         run: |
           pip install -r requirements.txt
           pytest
 
-      - name: Debug - Listar archivos antes del build Docker
+      - name: Debug - List files before Docker build
         working-directory: ./get-likes
         run: ls -l
 
-      - name: Debug - Mostrar ruta actual
-        working-directory: ./get-likes
-        run: pwd
-
-      - name: Debug - Mostrar contenido de Dockerfile
+      - name: Debug - Show Dockerfile content
         working-directory: ./get-likes
         run: cat Dockerfile || echo "NO DOCKERFILE FOUND"
 
-      - name: Construir imagen Docker (buildx)
-        run: docker buildx build --load -t ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest ./get-likes
+      - name: Build Docker image
+        working-directory: ./get-likes
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:${{ github.sha }} .
 
-      - name: Login a DockerHub
+      - name: Login to DockerHub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-      - name: Subir imagen a DockerHub
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest
+      - name: Push image to DockerHub
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:${{ github.sha }}
 
-      - name: Desplegar en EC2 por SSH (con .env)
+      - name: Deploy in EC2 via SSH (with .env)
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
@@ -214,12 +204,12 @@ jobs:
             EOF
 
             docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:${{ github.sha }}
             docker stop get-likes || true && docker rm get-likes || true
             docker run -d --name get-likes \
               --env-file /home/ubuntu/get-likes.env \
               -p 6003:6003 \
-              ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:latest
+              ${{ secrets.DOCKERHUB_USERNAME }}/get-likes:${{ github.sha }}
 
   remove_like_service:
     needs: changes
@@ -229,10 +219,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Instalar y preparar Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Generar .env para tests
+      - name: Generate .env for tests
         working-directory: ./remove-like
         run: |
           cat <<EOF > .env
@@ -249,34 +236,32 @@ jobs:
           REDIS_PORT=${{ secrets.REDIS_PORT }}
           EOF
 
-      - name: Instalar dependencias y ejecutar tests
+      - name: Install dependencies & run tests
         working-directory: ./remove-like
         run: |
           pip install -r requirements.txt
           pytest
 
-      - name: Debug - Listar archivos antes del build Docker
+      - name: Debug - List files before Docker build
         working-directory: ./remove-like
         run: ls -l
 
-      - name: Debug - Mostrar ruta actual
-        working-directory: ./remove-like
-        run: pwd
-
-      - name: Debug - Mostrar contenido de Dockerfile
+      - name: Debug - Show Dockerfile content
         working-directory: ./remove-like
         run: cat Dockerfile || echo "NO DOCKERFILE FOUND"
 
-      - name: Construir imagen Docker (buildx)
-        run: docker buildx build --load -t ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:latest ./remove-like
+      - name: Build Docker image
+        working-directory: ./remove-like
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:${{ github.sha }} .
 
-      - name: Login a DockerHub
+      - name: Login to DockerHub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-      - name: Subir imagen a DockerHub
-        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:latest
+      - name: Push image to DockerHub
+        run: docker push ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:${{ github.sha }}
 
-      - name: Desplegar en EC2 por SSH (con .env)
+      - name: Deploy in EC2 via SSH (with .env)
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.EC2_REACTIONS_DOMAIN_TEST }}
@@ -298,9 +283,9 @@ jobs:
             EOF
 
             docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:latest
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:${{ github.sha }}
             docker stop remove-like || true && docker rm remove-like || true
             docker run -d --name remove-like \
               --env-file /home/ubuntu/remove-like.env \
               -p 6002:6002 \
-              ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:latest
+              ${{ secrets.DOCKERHUB_USERNAME }}/remove-like:${{ github.sha }}
