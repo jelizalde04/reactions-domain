@@ -15,6 +15,10 @@ app = FastAPI(
     openapi_url="/api-docs-likes/openapi.json",   
 )
 
+@app.get("/health", tags=["Health Check"])
+def simple_health_check():
+    return {"status": "ok"}
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
