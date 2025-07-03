@@ -13,7 +13,7 @@ def add_like_controller(postId, responsibleId, petId):
     db_pets = SessionPet()
 
     try:
-        # Verify that the pet you want to like belongs to the person responsible
+        # Verify that the pet belongs to the responsible user
         pet = db_pets.execute(
             select(Pet).where(
                 Pet.id == petId,
@@ -32,7 +32,7 @@ def add_like_controller(postId, responsibleId, petId):
         if not post:
             raise HTTPException(status_code=404, detail="Post not found")
 
-       # Verify that the like does not already exist
+        # Check if the like already exists
         existing_like = db_reactions.execute(
             select(Like).where(
                 Like.postId == postId,
@@ -43,16 +43,52 @@ def add_like_controller(postId, responsibleId, petId):
         if existing_like:
             raise HTTPException(status_code=400, detail="Like already exists")
 
-       # Insert new like
+        # Prepare the new like (do not commit yet)
         new_like = Like(
             postId=postId,
             petId=petId,
             createdAt=datetime.utcnow()
         )
         db_reactions.add(new_like)
+
+        # Get the name of the pet who gave the like
+        liker_pet_name = pet.name
+
+        # Get the pet who owns the post
+        post_owner_pet = db_pets.execute(
+            select(Pet).where(Pet.id == post.petId)
+        ).scalar_one_or_none()
+
+        if not post_owner_pet:
+            raise HTTPException(status_code=404, detail="Owner pet not found")
+
+        post_owner_pet_name = post_owner_pet.name
+        post_owner_responsible_id = post_owner_pet.responsibleId
+
+        # Build the webhook payload
+        payload = {
+            "event": "LIKE_ADDED",
+            "data": {
+                "type": "Likes",
+                "actorId": str(petId),
+                "recipientId": str(postId),
+                "responsibleId": str(post_owner_responsible_id),
+                "timestamp": datetime.utcnow().isoformat(),
+                "content": f"{liker_pet_name} le dio like a una publicación de {post_owner_pet_name}."
+            }
+        }
+
+        # Try to send the webhook before committing the like
+        try:
+            send_like_webhook(payload)
+        except Exception as e:
+            db_reactions.rollback()  # Rollback the like if webhook fails
+            raise HTTPException(status_code=500, detail=f"Failed to send like notification: {str(e)}")
+
+        # Commit the like only if webhook was successful
         db_reactions.commit()
 
-        ## Increase the like counter on the post
+        # Update the like counter in the post
         db_posts.execute(
             update(Post)
             .where(Post.id == postId)
@@ -60,21 +96,7 @@ def add_like_controller(postId, responsibleId, petId):
         )
         db_posts.commit()
 
-        # WebHook a Notifications   
-        payload = {
-            "event": "LIKE_ADDED",
-            "data": {
-                "postId": postId,
-                "petId": petId,
-                "responsibleId": responsibleId,
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        }
-        send_like_webhook(payload)
-
         return {"message": "Like added successfully"}
-    
-
 
     finally:
         db_reactions.close()
