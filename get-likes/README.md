@@ -1,6 +1,6 @@
 # Get-Likes Microservice
 
-## 1. Service Overview
+## 1. Service Overview 
 
 The **Get-Likes Microservice** is a specialized component within the pet social media platform that handles the retrieval and display of like information for posts. This microservice provides both REST API and GraphQL endpoints to query like data, featuring Redis caching for optimal performance and detailed like analytics.
 
