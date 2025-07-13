@@ -4,9 +4,11 @@ from models.like_model import Like
 from models.post_model import Post
 from config.redis_client import redis_client
 from config.db import SessionReactions, SessionPost
+from uuid import UUID
 
-CACHE_TTL = 60 
-def get_likes_info_controller(postId: str):
+CACHE_TTL = 60
+
+def get_likes_info_controller(postId: UUID):
     db_reactions = SessionReactions()
     db_posts = SessionPost()
 
@@ -25,16 +27,13 @@ def get_likes_info_controller(postId: str):
         if cached_likes_count is not None:
             like_count = int(cached_likes_count)
         else:
-            # Si no está en cache, usar el valor de la DB y cachearlo
             like_count = post.likes
             redis_client.set(cache_key, like_count, ex=CACHE_TTL)
 
-        # Obtener todos los registros de Like asociados al post
         likes = db_reactions.execute(
             select(Like).where(Like.postId == postId)
         ).scalars().all()
 
-        # Formatear los registros a dict (puedes ajustar qué campos mostrar)
         likes_list = [
             {
                 "likeId": like.id,

@@ -2,9 +2,8 @@ from fastapi import APIRouter, status
 from fastapi.security import HTTPBearer
 from schemas.like_schema import LikeListResponse
 from controllers.like_controller import get_likes_info_controller
-
+from uuid import UUID
 router = APIRouter()
-
 
 security_scheme = HTTPBearer()
 
@@ -23,12 +22,6 @@ security_scheme = HTTPBearer()
         404: {"description": "Post not found"},
         401: {"description": "Token missing or invalid"},
     },
-
 )
-def get_likes_info(postId: str):
-    """
-    Returns:
-    - Total number of likes stored in the Post table.
-    - List of all Like records associated with the given postId.
-    """
+def get_likes_info(postId: UUID):
     return get_likes_info_controller(postId)
