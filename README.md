@@ -1,8 +1,8 @@
-# Reactions Domain - Pet Social Media Platform
+# Reactions Domain - Pet Social Media Platform        
 
 ## Overview
 
-The **Reactions Domain** is a comprehensive microservices architecture that handles all like-related functionality for a pet social media platform. This domain consists of three specialized microservices that work together to provide a complete reaction system for pet posts, enabling pet owners to express appreciation and view engagement metrics.
+The **Reactions Domain** is a comprehensive microservices architecture that handles all like-related functionality for a pet social media platform. This domain consists of three specialized microservices that work together to provide a complete reaction system for pet posts, enabling pet owners to express appreciation and view engagement metrics.     
 
 ## Architecture
 
