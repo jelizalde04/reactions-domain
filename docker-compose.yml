@@ -1,0 +1,34 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  add-like:
+    build:
+      context: ./add-like
+    image: ${DOCKERHUB_USERNAME}/add-like:latest
+    ports:
+      - "6001:6001"
+    env_file:
+      - ./add-like/.env
+
+  get-likes:
+    build:
+      context: ./get-likes
+    image: ${DOCKERHUB_USERNAME}/get-likes:latest
+    ports:
+      - "6003:6003"
+    env_file:
+      - ./get-likes/.env
+
+  remove-like:
+    build:
+      context: ./remove-like
+    image: ${DOCKERHUB_USERNAME}/remove-like:latest
+    ports:
+      - "6002:6002"
+    env_file:
+      - ./remove-like/.env
